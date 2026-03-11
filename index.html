@@ -1,93 +1,72 @@
 <!DOCTYPE html>
 <html lang="uz">
+
 <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Anonim yozish</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="/style.css">
-        <meta name="description" content="Anonim real-time yozish xizmati">
-    </head>
-    <body>
-        <div class="app-wrap">
-            <header class="topbar">
-                <span class="title">Anonim suhbat</span>
-                <div class="topbar-right">
-                    <button id="themeBtn" class="theme-btn" title="Fonni o'zgartir">🎨</button>
-                    <button id="clearCacheBtn" class="theme-btn" title="Keshni tozalash">🗑️</button>
-                    <button id="clearAllBtn" class="theme-btn" title="Hamma uchun tozalash">🔄</button>
-                    <div id="userCount" class="user-count">0 onlayn</div>
-                </div>
-            </header>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Anonim Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <meta name="description" content="Premium anonim chat xizmati">
+</head>
 
-            <main class="wrapper">
-                <!-- Xabarlar maydon -->
-                <div id="messages" class="display-area" aria-live="polite"></div>
+<body>
+  <div class="app-wrap">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="title">Anonim Chat</span>
+        <div id="userCount" class="user-count">Yuklanmoqda...</div>
+      </div>
+      <div class="topbar-right">
+        <button id="themeBtn" class="theme-btn" title="Mavzu">🎨</button>
+        <button id="clearCacheBtn" class="theme-btn" title="Tozalash">🗑️</button>
+        <button id="clearAllBtn" class="theme-btn" title="Hamma uchun">🔄</button>
+      </div>
+    </header>
 
-                <!-- Reply preview -->
-                <div id="replyPreview" class="reply-preview" aria-hidden="true">
-                    <span id="replyInfo"></span>
-                    <button id="cancelReply" class="cancel-reply">✖</button>
-                </div>
+    <main class="wrapper">
+      <div id="messages" class="display-area" aria-live="polite">
+        <!-- Xabarlar shu yerga tushadi -->
+      </div>
 
-                <!-- Pastki panel -->
-                <div class="bottom-bar">
-                    <div class="input-wrapper">
-                        <textarea id="messageInput" placeholder="Xabar yozib bering..." rows="2"></textarea>
-                        <div id="waveform" class="waveform" style="display: none;">
-                            <span class="wave"></span>
-                            <span class="wave"></span>
-                            <span class="wave"></span>
-                            <span class="wave"></span>
-                            <span class="wave"></span>
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <div class="send-group">
-                            <button id="sendBtn" class="send-btn">Yuborish</button>
-                            <button id="voiceBtn" class="voice-btn" title="Ovozni yoz">🎤</button>
-                        </div>
-                        <div id="recording-indicator" class="recording-indicator" style="display: none;">
-                            <span class="recording-dot"></span>
-                            <span id="recording-time">0:00</span>
-                        </div>
-                    </div>
-                </div>
-            </main>
+      <div id="replyPreview" class="reply-preview" style="display: none;">
+        <span id="replyInfo">Javob berish...</span>
+        <button id="cancelReply" class="cancel-reply">×</button>
+      </div>
 
-            <footer class="footer">Hamma anonim — hech qanday akkaunt talab qilinmaydi</footer>
+      <div class="bottom-bar">
+        <div class="input-wrapper">
+          <textarea id="messageInput" placeholder="Xabar..." rows="1"></textarea>
         </div>
 
-        <script src="/socket.io/socket.io.js"></script>
-        <script src="/index.js"></script>
-    </body>
-    <script>
-  // O‘ng tugmani o‘chirish (jim)
-  document.addEventListener('contextmenu', e => e.preventDefault());
+        <div class="controls">
+          <button id="sendBtn" class="send-btn" style="display: none;">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+            </svg>
+          </button>
+          <button id="voiceBtn" class="voice-btn">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"></path>
+              <path
+                d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z">
+              </path>
+            </svg>
+          </button>
+        </div>
 
-  // F12, Ctrl+U, Ctrl+Shift+I/J/C bloklash (jim)
-  document.addEventListener('keydown', function(e) {
-    if (
-      e.key === 'F12' ||
-      (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key)) ||
-      (e.ctrlKey && e.key === 'U')
-    ) {
-      e.preventDefault();
-      return false;
-    }
-  });
+        <div id="recording-indicator" class="recording-indicator" style="display: none;">
+          <span class="recording-dot"></span>
+          <span id="recording-time">0:00</span>
+          <button id="cancelRecordBtn"
+            style="background:none;border:none;color:#fff;cursor:pointer;font-size:18px;margin-left:8px;">×</button>
+        </div>
+      </div>
+    </main>
+  </div>
 
-  // DevTools ochilsa — sahifani jim o‘chirish
-  setInterval(() => {
-    if (window.outerWidth - window.innerWidth > 160) {
-      document.body.innerHTML = "";
-    }
-  }, 500);
-
-  // Console’ni jim tozalab turish
-  setInterval(() => {
-    console.clear();
-  }, 1000);
-</script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/index.js"></script>
+</body>
 
 </html>
