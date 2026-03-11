@@ -18,7 +18,7 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// Get all messages API
+// Get all messages API (Admin only concept)
 app.get('/api/messages', async (req, res) => {
     try {
         let messages = [];
@@ -33,7 +33,7 @@ app.get('/api/messages', async (req, res) => {
     }
 });
 
-// Delete single message API
+// Delete single message API (Admin/Global delete)
 app.delete('/api/messages/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -43,14 +43,14 @@ app.delete('/api/messages/:id', async (req, res) => {
             const idx = messagesStorage.findIndex(m => String(m._id) === String(id));
             if (idx > -1) messagesStorage.splice(idx, 1);
         }
-        io.emit('newMessage'); // Refresh broadcast
+        io.emit('refreshMessages'); // Refresh broadcast
         res.json({ ok: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Clear all messages (for admin/testing)
+// Clear all messages
 app.get('/clear', async (req, res) => {
     try {
         if (mongoConnected && Message) {
@@ -58,184 +58,150 @@ app.get('/clear', async (req, res) => {
         }
         messagesStorage = [];
         res.json({ ok: true, msg: 'Hamma xabarlar o\'chirildi' });
-        // Broadcast to all clients to refresh
         io.emit('refreshMessages', {});
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// In-memory message storage (fallback)
-let messagesStorage = [];
+// Models and State
 let Message = null;
+let User = null;
 let mongoConnected = false;
-// Map socket.id -> anon number
-const userMap = {};
-// Map persistent client ID (from localStorage) -> anon number
-const persistentMap = {};
+let messagesStorage = []; // Fallback
+
+const userMap = {}; // socket.id -> anon number (temp)
 let anonCounter = 1000;
 
-// Rate limiting: track message timestamps in a rolling window (5 seconds)
-const userMessageTimes = {}; // socket.id -> array of timestamps
-const userCooldown = {}; // socket.id -> cooldown end time
-const MESSAGE_WINDOW = 5000; // 5 second time window
-const MESSAGE_LIMIT = 4; // Max messages in window
+// Rate limiting
+const userMessageTimes = {};
+const userCooldown = {};
+const MESSAGE_WINDOW = 5000;
+const MESSAGE_LIMIT = 4;
 
 // MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/anonim';
-mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(MONGODB_URI)
     .then(() => {
         console.log('MongoDB ga ulandi');
         mongoConnected = true;
-            // Message model (supports text and sticker types)
-            const messageSchema = new mongoose.Schema({
-                text: { type: String },
-                sticker: { type: String },
-                type: { type: String, enum: ['text', 'sticker', 'voice'], default: 'text' },
-                author: { type: String, default: 'Anonim' },
-                persistentId: { type: String },
-                audio: { type: String },
-                duration: { type: Number },
-                socketId: { type: String },
-                replyTo: { type: String },
-                replyAuthor: { type: String },
-                replyText: { type: String },
-                createdAt: { type: Date, default: Date.now }
-            });
-            Message = mongoose.model('Message', messageSchema);
+
+        const messageSchema = new mongoose.Schema({
+            text: { type: String },
+            sticker: { type: String },
+            type: { type: String, enum: ['text', 'sticker', 'voice'], default: 'text' },
+            author: { type: String, default: 'Anonim' },
+            persistentId: { type: String },
+            audio: { type: String },
+            duration: { type: Number },
+            socketId: { type: String },
+            replyTo: { type: String },
+            replyAuthor: { type: String },
+            replyText: { type: String },
+            deletedBy: [{ type: String }], // Array of persistentIds
+            createdAt: { type: Date, default: Date.now }
+        });
+        Message = mongoose.model('Message', messageSchema);
+
+        const userSchema = new mongoose.Schema({
+            persistentId: { type: String, unique: true, required: true },
+            anonId: { type: Number, unique: true, required: true },
+            createdAt: { type: Date, default: Date.now }
+        });
+        User = mongoose.model('User', userSchema);
     })
     .catch(err => {
         console.warn('MongoDB ulanmadi, in-memory storage ishlatilmoqda:', err.message);
     });
 
-// HTTP server va Socket.io
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    maxHttpBufferSize: 1e7 // 10MB for voice
+});
 
-// Real-time chat
 io.on('connection', async (socket) => {
-    console.log('Yangi foydalanuvchi ulandi, Socket ID:', socket.id);
-    // assign temporary anonymous short id to this socket
-    const myAnonTemp = anonCounter++;
-    userMap[socket.id] = myAnonTemp;
-    // tell this client its anon id (may be updated if client provides persistent ID)
-    socket.emit('me', { anonId: myAnonTemp });
+    console.log('Yangi foydalanuvchi ulandi:', socket.id);
 
-    // If client provides a persistent ID (from localStorage), they will emit 'setUserId'.
-    // Listen for that and tie the persistent ID to a stable anon number.
-    socket.on('setUserId', (pid) => {
+    // Initial temp anon
+    userMap[socket.id] = anonCounter++;
+    socket.emit('me', { anonId: userMap[socket.id] });
+
+    socket.on('setUserId', async (pid) => {
         try {
             if (!pid) return;
             socket.persistentId = String(pid);
-            // If we've seen this persistent ID before, reuse its anon number.
-            if (persistentMap[pid]) {
-                userMap[socket.id] = persistentMap[pid];
-            } else {
-                // Otherwise, bind current temp anon to this persistent ID so it stays stable.
-                persistentMap[pid] = userMap[socket.id];
+
+            if (mongoConnected && User) {
+                let user = await User.findOne({ persistentId: pid });
+                if (!user) {
+                    const count = await User.countDocuments();
+                    user = new User({ persistentId: pid, anonId: 1000 + count });
+                    await user.save();
+                }
+                userMap[socket.id] = user.anonId;
             }
-            // Inform client of their stable anon id
+
             socket.emit('me', { anonId: userMap[socket.id] });
-            console.log('Persistent ID set for', socket.id, '->', pid, 'anon:', userMap[socket.id]);
+
+            // Re-send messages filtered for this user
+            let recent = [];
+            if (mongoConnected && Message) {
+                recent = await Message.find({ deletedBy: { $ne: socket.persistentId } }).sort({ createdAt: 1 }).limit(100).lean();
+            } else {
+                recent = messagesStorage.filter(m => !m.deletedBy || !m.deletedBy.includes(socket.persistentId)).slice(-100);
+            }
+            socket.emit('initMessages', recent);
         } catch (e) {
-            console.warn('setUserId handler error:', e && e.message);
+            console.error('setUserId error:', e);
         }
     });
 
-    // Send recent messages to newly connected client
-    try {
-        let recent = [];
-        if (mongoConnected && Message) {
-            recent = await Message.find({}).sort({ createdAt: 1 }).limit(200).lean();
-        } else {
-            recent = messagesStorage.slice(-200);
-        }
-        console.log('Yuborilgan xabarlar soni:', recent.length);
-        socket.emit('initMessages', recent);
-        // Broadcast current user count to all clients (use sockets map size for accuracy)
-        const count = (io.sockets && io.sockets.sockets) ? io.sockets.sockets.size : (io.engine.clientsCount || 0);
-        io.emit('userCount', count);
-    } catch (err) {
-        console.error('Xabarlar olinmadi:', err);
-        socket.emit('initMessages', messagesStorage.slice(-200));
-    }
-
-    // Yangi xabar kelganda: saqlash va hamma klientga yuborish
-    socket.on('sendMessage', async (msgText) => {
-        console.log('Xabar keldi:', msgText);
-
-        // Check if user is in cooldown
+    socket.on('sendMessage', async (msgData) => {
         const now = Date.now();
         if (userCooldown[socket.id] && userCooldown[socket.id] > now) {
-            const remainingTime = Math.ceil((userCooldown[socket.id] - now) / 1000);
-            console.log(`Foydalanuvchi rajhda: ${socket.id}, kutish vaqti: ${remainingTime}s`);
-            socket.emit('cooldown', { remainingTime });
+            socket.emit('cooldown', { remainingTime: Math.ceil((userCooldown[socket.id] - now) / 1000) });
             return;
         }
 
-        // Time-window based rate limiting
-        if (!userMessageTimes[socket.id]) {
-            userMessageTimes[socket.id] = [];
-        }
-        
-        // Remove messages older than MESSAGE_WINDOW
+        if (!userMessageTimes[socket.id]) userMessageTimes[socket.id] = [];
         userMessageTimes[socket.id] = userMessageTimes[socket.id].filter(t => now - t < MESSAGE_WINDOW);
-        
-        // Add current message timestamp
         userMessageTimes[socket.id].push(now);
-        
-        // Check if limit exceeded
+
         if (userMessageTimes[socket.id].length > MESSAGE_LIMIT) {
-            console.log(`${socket.id} 4 ta tezda xabar yuborgani, 10 soniyaga rajh qo'yildi`);
             userCooldown[socket.id] = now + 10000;
-            userMessageTimes[socket.id] = []; // Reset the array
             socket.emit('cooldown', { remainingTime: 10 });
-            // Still save and broadcast this 4th message before blocking
+            return;
         }
 
-        // accept either string or object {type, text, sticker, replyTo}
+        let msgObj = {
+            author: `Anonim-${userMap[socket.id] || 'anon'}`,
+            createdAt: new Date(),
+            socketId: socket.id,
+            persistentId: socket.persistentId || null
+        };
 
-        let msgObj = { author: `Anonim-${userMap[socket.id] || 'anon'}`, createdAt: new Date(), type: 'text', socketId: socket.id, persistentId: socket.persistentId || null };
-        if (typeof msgText === 'string') {
-            if (!msgText.trim()) return;
-            msgObj.text = msgText.trim();
-        } else if (typeof msgText === 'object' && msgText !== null) {
-            if (msgText.type === 'voice') {
-                msgObj.type = 'voice';
-                msgObj.audio = String(msgText.audio || '');
-                msgObj.duration = msgText.duration || 0;
-                if (!msgObj.audio) return;
-            } else if (msgText.type === 'sticker') {
-                msgObj.type = 'sticker';
-                msgObj.sticker = String(msgText.sticker || '').slice(0, 200);
+        if (typeof msgData === 'object' && msgData !== null) {
+            msgObj.type = msgData.type || 'text';
+            if (msgObj.type === 'voice') {
+                msgObj.audio = msgData.audio;
+                msgObj.duration = msgData.duration;
             } else {
-                msgObj.type = 'text';
-                msgObj.text = String(msgText.text || '').trim();
+                msgObj.text = String(msgData.text || '').trim();
                 if (!msgObj.text) return;
             }
-            // preserve replyTo if present
-            if (msgText.replyTo) msgObj.replyTo = String(msgText.replyTo);
+            if (msgData.replyTo) msgObj.replyTo = msgData.replyTo;
         } else {
-            console.warn('Xabar noto\'g\'ri format');
             return;
         }
 
-        // If this message is a reply, try to fetch original message excerpt
         if (msgObj.replyTo) {
             try {
-                let orig = null;
-                if (mongoConnected && Message) {
-                    orig = await Message.findById(msgObj.replyTo).lean();
-                } else {
-                    orig = messagesStorage.find(m => String(m._id) === String(msgObj.replyTo));
-                }
+                let orig = mongoConnected ? await Message.findById(msgObj.replyTo).lean() : messagesStorage.find(m => m._id == msgObj.replyTo);
                 if (orig) {
-                    msgObj.replyAuthor = orig.author || 'Anonim';
-                    msgObj.replyText = orig.type === 'sticker' ? (orig.sticker || '') : (orig.text || '');
+                    msgObj.replyAuthor = orig.author;
+                    msgObj.replyText = orig.text || '[Ovoz]';
                 }
-            } catch (e) {
-                console.warn('Reply original topilmadi', e.message);
-            }
+            } catch (e) { }
         }
 
         try {
@@ -243,37 +209,43 @@ io.on('connection', async (socket) => {
                 const doc = new Message(msgObj);
                 const saved = await doc.save();
                 msgObj._id = saved._id;
-                msgObj.createdAt = saved.createdAt;
             } else {
-                // generate simple id for in-memory messages
-                msgObj._id = `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+                msgObj._id = Date.now();
                 messagesStorage.push(msgObj);
             }
-            
-            console.log(`Xabar saqland va yuborildi: ${msgObj.text || msgObj.sticker || '[Ovoz xabari]'}`);
             io.emit('newMessage', msgObj);
-            
-            // also emit updated user count (in case)
-            const count2 = (io.sockets && io.sockets.sockets) ? io.sockets.sockets.size : (io.engine.clientsCount || 0);
-            io.emit('userCount', count2);
         } catch (err) {
-            console.error('Xabar saqlanmadi:', err);
-            messagesStorage.push(msgObj);
-            io.emit('newMessage', msgObj);
+            console.error('Save failed:', err);
+        }
+    });
+
+    socket.on('deleteForMe', async (msgId) => {
+        try {
+            if (!socket.persistentId || !msgId) return;
+            if (mongoConnected && Message) {
+                await Message.findByIdAndUpdate(msgId, { $addToSet: { deletedBy: socket.persistentId } });
+            } else {
+                const msg = messagesStorage.find(m => m._id == msgId);
+                if (msg) {
+                    if (!msg.deletedBy) msg.deletedBy = [];
+                    if (!msg.deletedBy.includes(socket.persistentId)) msg.deletedBy.push(socket.persistentId);
+                }
+            }
+            socket.emit('messageDeletedLocally', msgId);
+        } catch (e) {
+            console.error('deleteForMe error:', e);
         }
     });
 
     socket.on('disconnect', () => {
-        console.log('Foydalanuvchi uzildi:', socket.id);
-        // remove mapping and broadcast user count
         delete userMap[socket.id];
         delete userMessageTimes[socket.id];
         delete userCooldown[socket.id];
-        const count3 = (io.sockets && io.sockets.sockets) ? io.sockets.sockets.size : (io.engine.clientsCount || 0);
-        io.emit('userCount', count3);
+        io.emit('userCount', io.engine.clientsCount);
     });
+
+    io.emit('userCount', io.engine.clientsCount);
 });
 
-// Serverni ishga tushirish
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server ishga tushdi: http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`));
