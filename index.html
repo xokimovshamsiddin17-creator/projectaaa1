@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="uz">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Anonim Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <meta name="description" content="Premium anonim chat xizmati">
+</head>
+
+<body>
+    <div class="main-container">
+        <!-- Telegram Hamburger Slide-out Menu -->
+        <div id="navDrawerOverlay" class="drawer-overlay" style="display: none;"></div>
+        <div id="navDrawer" class="nav-drawer" style="transform: translateX(-100%);">
+            <div class="drawer-header">
+                <img id="drawerAvatar" src="" alt="Avatar" class="drawer-avatar">
+                <div class="drawer-user-info">
+                    <span id="drawerName" class="drawer-name">Yuklanmoqda...</span>
+                    <span id="drawerAnon" class="drawer-anon-id"></span>
+                </div>
+            </div>
+            <div class="drawer-menu">
+                <button id="drawerProfileBtn" class="drawer-menu-item">
+                    <span class="drawer-icon">👤</span> Mening profilim
+                </button>
+                <button id="drawerThemeBtn" class="drawer-menu-item">
+                    <span class="drawer-icon">🎨</span> Tungi rejim
+                </button>
+                <button id="drawerCacheBtn" class="drawer-menu-item text-danger">
+                    <span class="drawer-icon">☄️</span> Keshni tozalash
+                </button>
+            </div>
+        </div>
+
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button id="hamburgerBtn" class="icon-btn hamburger-btn" title="Menyu">☰</button>
+                <div class="search-wrap">
+                    <input type="text" id="chatSearch" placeholder="Qidirish...">
+                </div>
+            </div>
+            <div class="chat-list" id="chatList">
+                <!-- Chat items (Global, Private) will be injected here -->
+                <div class="chat-item active" id="globalChatItem">
+                    <div class="chat-item-avatar global-avatar">#</div>
+                    <div class="chat-item-info">
+                        <div class="chat-item-header">
+                            <div class="chat-item-name">Global Chat</div>
+                            <div class="chat-item-time" id="globalChatTime"></div>
+                        </div>
+                        <div class="chat-item-footer">
+                            <div class="chat-item-last-msg">Xabarlar yuboring...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="chat-area">
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button id="backBtn" class="icon-btn mobile-only">←</button>
+                    <div id="chatInfo" class="chat-info">
+                        <span id="chatTitle" class="title">Anonim Chat</span>
+                        <div id="userCount" class="user-count">Yuklanmoqda...</div>
+                    </div>
+                </div>
+                <div class="topbar-right">
+                    <button id="settingsBtn" class="icon-btn" title="Sozlamalar">⚙️</button>
+                    <button id="themeBtn" class="icon-btn" title="Mavzu">🎨</button>
+                    <button id="clearCacheBtn" class="icon-btn" title="Keshni tozalash">🗑️</button>
+                </div>
+            </header>
+
+            <div id="messages" class="display-area">
+                <!-- Messages will be injected here -->
+            </div>
+
+            <div class="bottom-bar">
+                <div id="replyPreview" class="reply-preview" style="display: none;">
+                    <div class="reply-preview-info">
+                        <div id="replyUser" class="reply-preview-user">Asad</div>
+                        <div id="replyText" class="reply-preview-text">Salom qalesan</div>
+                    </div>
+                    <button id="cancelReply" class="cancel-reply">×</button>
+                </div>
+
+                <div class="input-container">
+                    <button id="attachBtn" class="icon-btn attachment-btn">📎</button>
+                    <input type="file" id="fileInput" style="display: none;"
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip">
+                    <div class="input-wrapper">
+                        <textarea id="messageInput" placeholder="Xabar yozing..." rows="1"></textarea>
+                    </div>
+                    <button id="stickerBtn" class="icon-btn" title="Stikerlar">😊</button>
+
+                    <div class="controls">
+                        <button id="sendBtn" class="send-btn" style="display: none;">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                            </svg>
+                        </button>
+                        <button id="voiceBtn" class="voice-btn">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z">
+                                </path>
+                                <path
+                                    d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z">
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="recording-indicator" class="recording-indicator" style="display: none;">
+                    <span class="recording-dot"></span>
+                    <span id="recording-time">0:00</span>
+                    <button id="cancelRecordBtn" class="icon-btn">×</button>
+                </div>
+
+                <div id="stickerPicker" class="sticker-picker">
+                    <div class="sticker-picker-header">Stikerlar</div>
+                    <div id="stickerGrid" class="sticker-grid">
+                        <!-- Stickers will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Profile Settings Modal (Telegram Style) -->
+        <div id="settingsModal" class="modal" style="display: none;">
+            <div class="modal-content profile-modal">
+                <div class="modal-header">
+                    <h3>Profil sozlamalari</h3>
+                    <button id="closeSettings" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body profile-body">
+                    <div class="profile-avatar-container">
+                        <img id="myAvatar" src="" alt="Avatar" class="profile-avatar-img">
+                        <div class="avatar-edit-overlay" id="selectAvatarOverlay">
+                            <span>📷 O'zgartirish</span>
+                        </div>
+                        <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
+                    </div>
+                    <p id="fileNameDisplay" class="hint text-center"></p>
+
+                    <div class="profile-form-group">
+                        <label class="profile-label">Nik</label>
+                        <div class="profile-input-wrapper">
+                            <input type="text" id="nicknameInput" class="profile-input"
+                                placeholder="Ismingizni kiriting...">
+                        </div>
+                        <p class="profile-hint">Bu nom global chatda va boshqa foydalanuvchilar bilan suhbatda
+                            ko'rinadi.</p>
+                    </div>
+
+                    <div class="profile-actions">
+                        <button id="saveNickname" class="btn-primary btn-block">Saqlash</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Viewer Lightbox -->
+        <div id="lightboxOverlay" class="lightbox-overlay" style="display: none;">
+            <button id="closeLightbox" class="lightbox-close">&times;</button>
+            <img id="lightboxImage" src="" alt="Ko'rish" class="lightbox-img">
+            <div class="lightbox-toolbar">
+                <a id="downloadLightbox" href="" download="image.jpg" class="lightbox-btn" title="Yuklab olish">📥</a>
+            </div>
+        </div>
+
+        <div id="notification-container" class="notification-container"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/index.js"></script>
+</body>
+
+</html>
