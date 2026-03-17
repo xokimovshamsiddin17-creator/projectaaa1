@@ -1,0 +1,5 @@
+[install]
+cmds = ["npm install --legacy-peer-deps"]
+
+[start]
+cmd = "node server.js"
