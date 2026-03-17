@@ -850,8 +850,8 @@ function sendSticker(url) {
     replyPreviewEl.style.display = 'none';
 }
 
-sendBtn.addEventListener('pointerdown', (e) => {
-    e.preventDefault(); // prevents textarea from losing focus
+sendBtn.addEventListener('click', (e) => {
+    e.preventDefault();
     sendMessage();
 });
 messageInput.addEventListener('keydown', e => {
